@@ -138,10 +138,36 @@ void setup(void)
 {
         // Uncomment for 3.3v boards. Cuts clock in half
         // only on avr based arduino & teensy hardware
-        //CPU_PRESCALE(0x01); 
+        CPU_PRESCALE(0x01); 
         Serial.begin(115200);
+        Serial.print("\n> ");
 }
 
+int readline(int readch, char *buffer, int len)
+{
+	static int pos = 0;
+	int rpos;
+
+	if (readch > 0) {
+		switch (readch) {
+			case '\n': // Ignore new-lines
+			break;
+			case '\r': // Return on CR
+			rpos = pos;
+			pos = 0;  // Reset position index ready for next time
+			Serial.println("");
+			return rpos;
+			default:
+			if (pos < len-1) {
+				buffer[pos++] = readch;
+				Serial.print(buffer[pos-1]);
+				buffer[pos] = 0;
+			}
+		}
+	}
+	// No end of line has been found, so return -1.
+	return -1;
+}
 
 
 /*
@@ -768,6 +794,34 @@ void help()
 			"	 look at the main()/loop() code to specify pins.\r\n"
 			));
 }
+
+void shorthelp()
+{
+	printProgStr(PSTR(
+		"Short and long form commands can be used.\r\n"
+		"\r\n"
+		"SCANS\r\n"
+		"-----\r\n"
+		"s > pattern scan\r\n"
+		"p > pattern set\r\n"
+		"i > idcode scan\r\n"
+		"b > bypass scan\r\n"
+		"\r\n"
+		"OPTIONAL\r\n"
+		"--------\r\n"
+		"l > loopback check\r\n"
+		"r > pullups\r\n"
+		"v > verbose\r\n"
+		"d > delay\r\n"
+		"- > delay -\r\n"
+		"+ > delay +\r\n"
+		"h > short help\r\n"
+		"help > long help\r\n"
+		"n > list pin names\r\n"
+		"\r\n"
+	));
+}
+
 /*
  * main()
  */
@@ -776,18 +830,10 @@ char command[CMDLEN];
 int dummy;
 void loop() 
 {
-	if (Serial.available())
-	{
-		// READ COMMAND
-		delay(5); // hoping read buffer is idle after 5 ms
-		int i = 0;
-		while (Serial.available() && i < CMDLEN-1) 
-			command[i++] = Serial.read();
-	
+	// READ COMMAND
+	if (readline(Serial.read(), command, CMDLEN) > 0) {
 		Serial.flush();
-		command[i] = 0; // terminate string
-		Serial.println(command); // echo back
-	
+
 		// EXECUTE COMMAND
 		if     (strcmp(command, "pattern scan") == 0                     || strcmp(command, "s") == 0)
 			scan();
@@ -846,8 +892,10 @@ void loop()
 			PULLUP = ~PULLUP;
 			Serial.println(PULLUP ? "Pullups ON" : "Pullups OFF");
 		}
-		else if(strcmp(command, "help") == 0                             || strcmp(command, "h") == 0)
+		else if(strcmp(command, "help") == 0)
 			help();
+		else if(strcmp(command, "h") == 0                                || strcmp(command, "?") == 0)
+			shorthelp();
 		else if(strcmp(command, "list pin names") == 0                   || strcmp(command, "n") == 0)
 			list_pin_names();
 		else 
